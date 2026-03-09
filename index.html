@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusGuard | AI Focus Protector</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <!-- Object Detection Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <span class="shield-icon">🛡️</span>
+                <h1>Focus<span>Guard</span></h1>
+            </div>
+            <div class="header-actions">
+                <button id="theme-toggle-btn" class="header-btn" title="Toggle Light/Dark Mode"
+                    style="font-size: 1.2rem; padding: 0.5rem 1rem;">🌓</button>
+                <button id="stats-btn" class="header-btn"
+                    style="color:var(--neon-cyan); border-color:var(--neon-cyan)">📊 My Stats</button>
+                <button id="guide-btn" class="header-btn">📖 How to Use</button>
+                <button id="support-btn" class="header-btn">💖 Support Me</button>
+            </div>
+            <div class="session-stats">
+                <div class="stat-item">
+                    <span class="stat-label">SESSION</span>
+                    <span id="focus-time" class="stat-value">00:00</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">DAILY</span>
+                    <span id="daily-time" class="stat-value">00:00</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">BEST</span>
+                    <span id="best-time" class="stat-value">00:00</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">DISTRACTIONS</span>
+                    <span id="distraction-count" class="stat-value">0</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item" style="color: var(--neon-cyan)">
+                    <span class="stat-label">SESSIONS</span>
+                    <span id="completed-sessions" class="stat-value">0</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">VISITORS</span>
+                    <span id="global-visitors" class="stat-value">...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <div class="video-section">
+                <div class="video-wrapper">
+                    <video id="input-video" playsinline></video>
+                    <canvas id="output-canvas"></canvas>
+                    <div id="status-badge" class="badge focused">FOCUSED</div>
+                    <div id="live-metrics" class="metrics-overlay">
+                        P: <span id="val-pitch">0</span>° |
+                        Y: <span id="val-yaw">0</span>° |
+                        G: <span id="val-gaze">0.0</span>
+                    </div>
+                    <div id="alert-overlay" class="hidden">
+                        <div class="alert-content">
+                            <h2 id="alert-text">HEY! GET BACK TO WORK!</h2>
+                            <p>Distraction detected for 2+ seconds</p>
+                        </div>
+                    </div>
+                    <!-- Break Overlay -->
+                    <div id="break-overlay" class="hidden">
+                        <div class="break-content">
+                            <h2>☕ BREAK TIME!</h2>
+                            <p>You completed your focus commitment!</p>
+                            <button id="resume-btn" class="primary-btn mt-1">START NEXT SESSION</button>
+                        </div>
+                    </div>
+                    <!-- Pomodoro Setup Overlay -->
+                    <div id="pomodoro-setup-overlay" class="hidden">
+                        <div class="setup-content card">
+                            <h2>🎯 Set Your Commitment</h2>
+                            <p>How long will you focus without distractions?</p>
+                            <div class="commitment-inputs">
+                                <button class="time-btn" data-time="15">15m</button>
+                                <button class="time-btn active" data-time="25">25m</button>
+                                <button class="time-btn" data-time="50">50m</button>
+                                <input type="number" id="commit-mins-custom" placeholder="Custom" min="1" max="120">
+                            </div>
+                            <div class="hardcore-toggle-wrapper">
+                                <label class="hardcore-label"
+                                    title="Disables the STOP button. You cannot quit until time is up!">
+                                    <input type="checkbox" id="hardcore-toggle">
+                                    🔥 Hardcore Mode (No Quitting)
+                                </label>
+                            </div>
+                            <button id="commit-start-btn" class="primary-btn mt-1">COMMIT & GUARD</button>
+                            <button id="cancel-setup-btn" class="secondary-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls-panel">
+                    <button id="start-btn" class="primary-btn">START GUARDING</button>
+                    <button id="stop-btn" class="secondary-btn hidden">STOP</button>
+                </div>
+            </div>
+
+            <aside class="info-section">
+                <!-- Open Source / Feedback Section -->
+                <div class="card action-card">
+                    <h3>🛠️ Help Improve FocusGuard</h3>
+                    <p>Have an idea for a massive new feature? Want to report a bug? Join us on GitHub to suggest
+                        changes!</p>
+                    <a href="https://github.com/thelost-beep/focous-gouard/issues" target="_blank"
+                        class="github-star-btn suggestion-btn">
+                        💡 Suggest a Feature
+                    </a>
+                    <a href="https://github.com/thelost-beep/focous-gouard" target="_blank" class="github-star-btn">
+                        ⭐ Star us on GitHub
+                    </a>
+                </div>
+
+                <!-- Community Support Section -->
+                <div class="card community-card">
+                    <h3>🌟 Community Shoutouts</h3>
+                    <p>A huge thanks to our Instagram community for constructive feedback that helped shape this
+                        version:</p>
+                    <ul class="shoutout-list">
+                        <li><span class="insta-icon">📸</span> <strong><a href="https://instagram.com/hollow_quotezz"
+                                    target="_blank"
+                                    style="color:var(--text-main); text-decoration:none;">@hollow_quotezz</a></strong>
+                        </li>
+                        <li><span class="insta-icon">📸</span> <strong><a href="https://instagram.com/32vin.k"
+                                    target="_blank"
+                                    style="color:var(--text-main); text-decoration:none;">@32vin.k</a></strong></li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h3>How it Works</h3>
+                    <ul>
+                        <li><span class="dot"></span> <strong>Head Tracking</strong>: Detects if you're looking down at
+                            your phone.</li>
+                        <li><span class="dot"></span> <strong>Eye Tracking</strong>: Notices if you're looking away or
+                            nodding off.</li>
+                        <li><span class="dot"></span> <strong>Audio Nudge</strong>: Plays a funny alert to snap you back
+                            to focus!</li>
+                    </ul>
+                </div>
+                <div class="card privacy-card">
+                    <h3>🔒 Privacy First</h3>
+                    <p>All AI processing happens <strong>locally</strong> in your browser. No video is ever sent to any
+                        server. Your privacy is 100% guarded.</p>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Audio Elements -->
+        <audio id="audio-a" src="abey-uth-jaa-saale.mp3" preload="auto"></audio>
+        <audio id="audio-b" src="uth-jaa-no-censor.mp3" preload="auto"></audio>
+
+        <footer>
+            <div class="visitor-counter">
+                <img src="https://profile-counter.glitch.me/focusguard-thelostbeep/count.svg" alt="Visitor Count">
+            </div>
+            <p>Built for Focus by <a href="https://github.com/thelost-beep" target="_blank">thelost-beep</a> (IG: <a
+                    href="https://instagram.com/aftab.builds" target="_blank">@aftab.builds</a>)</p>
+        </footer>
+    </div>
+
+    <!-- Background Decoration -->
+    <div class="bg-glow"></div>
+    <div class="bg-circles">
+        <div class="circle c1"></div>
+        <div class="circle c2"></div>
+    </div>
+
+    <!-- User Guide Modal -->
+    <div id="guide-modal" class="modal hidden">
+        <div class="modal-content card">
+            <span class="close-btn">&times;</span>
+            <h2>📖 How to Use FocusGuard Perfectly</h2>
+            <div class="guide-sections">
+                <div class="guide-item">
+                    <h3>1. Perfect Lighting 💡</h3>
+                    <p>Ensure your face is well-lit. Avoid sitting with bright windows directly behind you
+                        (backlighting), as it shadows your face and makes eye tracking difficult.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>2. Camera Angle 📷</h3>
+                    <p>Position your camera roughly at eye level. If your laptop is too low, the AI might think you are
+                        always looking down (distracted). Do not stare straight up at the ceiling!</p>
+                </div>
+                <div class="guide-item">
+                    <h3>3. Smart Phone Detection 📱</h3>
+                    <p>FocusGuard actively scans for cell phones. If you hold a phone up to watch reels, it will
+                        instantly flag you as distracted—even if you are looking straight!</p>
+                </div>
+                <div class="guide-item">
+                    <h3>4. Fast Sleep Detection 😴</h3>
+                    <p>Gaze down naturally to read or write. But if your eyes close for more than 1 second, the alarm
+                        will instantly snap you awake.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>5. Stay at your desk 🚫</h3>
+                    <p>If you start a session and walk away from your desk, the system will start screaming after a few
+                        seconds. Do not leave until you hit your goal!</p>
+                </div>
+                <div class="guide-item">
+                    <h3>6. Pomodoro Commitments ⏱️</h3>
+                    <p>Set how many minutes you want to focus before hitting "Start". Once you reach your goal, a Break
+                        Mode screen will appear so you can safely relax off-camera!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Chart Modal -->
+    <div id="stats-modal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 800px;">
+            <span class="close-btn" id="close-stats-btn">&times;</span>
+            <h2>📈 Focus History (Last 7 Days)</h2>
+            <div style="width: 100%; height: 300px; display: flex; justify-content: center; margin-top: 1rem;">
+                <canvas id="weeklyStatsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support Me Modal -->
+    <div id="support-modal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 400px; text-align: center;">
+            <span class="close-btn" id="close-support-btn">&times;</span>
+            <h2 style="color: #FFDD00;">💖 Support My Work</h2>
+            <p style="margin-bottom: 2rem;">If this project helps you focus, consider buying me a coffee or sending a
+                tip via UPI! Your support keeps this app ad-free and open source.</p>
+
+            <a href="https://buymeacoffee.com/aftab7" target="_blank" class="primary-btn"
+                style="display:block; text-decoration:none; background:#FFDD00; color:#000; font-weight:bold; margin-bottom: 2rem;">
+                ☕ Buy me a Coffee
+            </a>
+
+            <div
+                style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                <p style="margin-bottom: 1rem; color: #fff; font-weight: bold;">Scan to Pay with UPI</p>
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=aftabxsty@fam&pn=FocusGuard"
+                    alt="UPI QR Code" style="width: 200px; height: 200px; border-radius: 8px; margin-bottom: 1rem;">
+                <br>
+                <a href="upi://pay?pa=aftabxsty@fam&pn=FocusGuard" class="upi-box"
+                    style="display:inline-block; text-decoration:none; color:inherit; margin-top: 10px;">
+                    <span>Wait, I'm on my phone!</span><br>
+                    <strong style="color: var(--secondary);">Tap to Open Payment App</strong>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buy Me A Coffee Widget -->
+    <script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js"
+        data-id="aftab7" data-description="Support me on Buy me a coffee!" data-message="" data-color="#00e0ff"
+        data-position="Right" data-x_margin="18" data-y_margin="18"></script>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
