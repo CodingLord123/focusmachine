@@ -1,0 +1,13 @@
+{
+  "name": "Jitterbug",
+  "start_url": "https://rustroker.github.io/jitterbug",
+  "icons": [
+    {
+      "sizes": "512x512",
+      "src": "./icon.png",
+      "type": "image/png"
+    }
+  ],
+  "//display": "standalone",
+  "display": "fullscreen"
+} 
